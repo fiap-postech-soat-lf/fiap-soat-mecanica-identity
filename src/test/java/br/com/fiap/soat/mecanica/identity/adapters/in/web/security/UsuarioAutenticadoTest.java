@@ -41,7 +41,6 @@ class UsuarioAutenticadoTest {
                 new UsuarioAutenticado(UUID.randomUUID(), UsuarioAutenticado.TipoPrincipal.CLIENTE, null);
 
         assertThat(cliente.isCliente()).isTrue();
-        // Falha de proposito (T16, item 3): o PR precisa ficar bloqueado com o ci / build vermelho
-        assertThat(cliente.cargo()).isEqualTo("ATENDENTE");
+        assertThat(cliente.cargo()).isNull();
     }
 }
