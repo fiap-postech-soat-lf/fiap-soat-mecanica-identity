@@ -39,8 +39,8 @@ run "contrato_infra_cd" {
   }
 
   assert {
-    condition     = startswith(output.app_config.SPRING_DATASOURCE_URL, "jdbc:postgresql://") && endswith(output.app_config.SPRING_DATASOURCE_URL, "/identity?sslmode=require")
-    error_message = "SPRING_DATASOURCE_URL deve vir do jdbc_url do modulo -db (banco identity, sslmode=require)."
+    condition     = startswith(output.app_config.SPRING_DATASOURCE_URL, "jdbc:postgresql://") && endswith(output.app_config.SPRING_DATASOURCE_URL, "/identity_db?sslmode=require")
+    error_message = "SPRING_DATASOURCE_URL deve vir do jdbc_url do modulo -db (banco identity_db, sslmode=require)."
   }
 
   assert {
