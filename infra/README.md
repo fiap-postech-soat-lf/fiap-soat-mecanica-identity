@@ -1,6 +1,27 @@
 # infra/ do serviço identity
 
-O Terraform deste serviço começa na fase em que ele é implementado. Enquanto não houver `*.tf` aqui, o CI e o CD pulam o Terraform.
+Terraform do Identity, aplicado pelo `servico-cd.yml@v1` antes do build da imagem. A F2 deixa o mínimo para o esqueleto subir no EKS; a F3 acrescenta a fila `identity-notificacoes` (+ DLQ), a assinatura, a `JWT_PRIVATE_KEY` no `app_secrets` e as chaves de mensageria no `app_config`.
+
+## Recursos
+
+| Arquivo | Recursos |
+|---|---|
+| `data.tf` | Lê do SSM a VPC, as subnets e o SG dos nodes publicados pelo `-k8s` (`/mecanica/k8s/*`) |
+| `jwt.tf` | Par RSA 2048 (`tls_private_key`); secret `mecanica-identity-jwt` com `privateKeyPem` (PKCS#8) e `publicKeyPem`; SSM `/mecanica/identity/jwt-secret-arn` e `/mecanica/identity/jwt-public-key` |
+| `ecr.tf` | Repositório `mecanica-identity` (`MUTABLE`, `force_delete`, scan on push) e lifecycle que mantém as 10 imagens mais recentes |
+| `rds.tf` | Módulo `fiap-soat-mecanica-db//modules/rds-postgres?ref=v1`: RDS, secret e SG `mecanica-identity-db`, banco `identity` |
+
+- O par JWT é gerado a cada janela (o ambiente é destruído e recriado), então os tokens de janelas anteriores deixam de valer. A chave privada fica também no state (bucket privado e criptografado, ADR-F4-07).
+- O `-auth` lê `/mecanica/identity/jwt-public-key` e passa a chave à Lambda Authorizer como variável de ambiente. Por isso o `-auth` é aplicado depois do Identity (`subir-ambiente.sh`).
+- Tudo é destrutível sem sobra: secret com `recovery_window_in_days = 0`, ECR com `force_delete` e RDS sem snapshot final (regras 3.3 do plano da F2).
+
+## Comandos
+
+```bash
+terraform -chdir=infra init -backend=false
+terraform -chdir=infra validate
+terraform -chdir=infra test   # provider aws mockado, sem credencial
+```
 
 ## Contrato com o CD (`servico-cd.yml@v1`)
 
@@ -11,6 +32,15 @@ O `infra/outputs.tf` precisa expor:
 | `ecr_repository_url` | `string` | Repositório da imagem (`mecanica-identity`) |
 | `app_config` | `map(string)` | Vira o ConfigMap `mecanica-identity-config` |
 | `app_secrets` | `map(string)`, `sensitive = true` | Vira o Secret `mecanica-identity-secret` |
+
+Valores atuais:
+
+| Output | Chave | Valor |
+|---|---|---|
+| `app_config` | `SPRING_DATASOURCE_URL` | `jdbc_url` do módulo (`sslmode=require`) |
+| `app_config` | `AWS_REGION` | `var.aws_region` |
+| `app_config` | `JWT_PUBLIC_KEY` | PEM da chave pública com `\n` escapado (`--from-env-file` não aceita valor multilinha) |
+| `app_secrets` | `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` | Usuário e senha master do RDS |
 
 - Backend S3 configurado pelo CD: bucket `mecanica-tfstate-<accountId>`, key `fiap-soat-mecanica-identity/terraform.tfstate`. O `backend.tf` fica só com `backend "s3" {}`.
 - Provider AWS `~> 6.0`, `required_version = ">= 1.10.0, < 2.0.0"`.
