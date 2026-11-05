@@ -2,6 +2,10 @@ package br.com.fiap.soat.mecanica.identity.config.exception;
 
 import br.com.fiap.soat.mecanica.identity.domain.exception.RecursoNaoEncontradoException;
 import br.com.fiap.soat.mecanica.identity.domain.exception.RegraNegocioException;
+import br.com.fiap.soat.mecanica.identity.application.auth.AcessoNegadoException;
+import br.com.fiap.soat.mecanica.identity.application.auth.CpfInvalidoException;
+import br.com.fiap.soat.mecanica.identity.application.auth.EmissorIndisponivelException;
+import br.com.fiap.soat.mecanica.identity.domain.exception.CredenciaisInvalidasException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.validation.ConstraintViolationException;
@@ -104,6 +108,31 @@ public class GlobalExceptionHandler {
                         null
                 )
         );
+    }
+
+    @ExceptionHandler(CredenciaisInvalidasException.class)
+    public ResponseEntity<ErrorResponse> handleCredenciaisInvalidas(CredenciaisInvalidasException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                new ErrorResponse(401, "CREDENCIAIS_INVALIDAS", ex.getMessage(), null, null, null));
+    }
+
+    @ExceptionHandler(AcessoNegadoException.class)
+    public ResponseEntity<ErrorResponse> handleAcessoNegadoLogin(AcessoNegadoException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                new ErrorResponse(401, "ACESSO_NEGADO", ex.getMessage(), null, null, null));
+    }
+
+    @ExceptionHandler(CpfInvalidoException.class)
+    public ResponseEntity<ErrorResponse> handleCpfInvalido(CpfInvalidoException ex) {
+        return ResponseEntity.badRequest().body(
+                new ErrorResponse(400, "CPF_INVALIDO", ex.getMessage(), "cpf", null, null));
+    }
+
+    @ExceptionHandler(EmissorIndisponivelException.class)
+    public ResponseEntity<ErrorResponse> handleEmissorIndisponivel(EmissorIndisponivelException ex) {
+        log.atError().addKeyValue("event", "emissor_indisponivel").log("Emissor de tokens indisponivel");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                new ErrorResponse(503, "EMISSOR_INDISPONIVEL", ex.getMessage(), null, null, null));
     }
 
     @ExceptionHandler(RecursoNaoEncontradoException.class)

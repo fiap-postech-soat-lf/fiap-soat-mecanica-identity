@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -19,7 +20,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import java.io.IOException;
 
 /**
- * Publicas: so health e Swagger. Todo o resto exige JWT valido. Sem autenticacao responde 401 e
+ * Publicas: health, Swagger e os dois logins (POST /auth/login e POST /auth/cpf). Todo o resto exige JWT valido. Sem autenticacao responde 401 e
  * sem permissao responde 403, os dois no formato ErrorResponse.
  */
 @Configuration
@@ -51,6 +52,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(ROTAS_PUBLICAS).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/cpf").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex

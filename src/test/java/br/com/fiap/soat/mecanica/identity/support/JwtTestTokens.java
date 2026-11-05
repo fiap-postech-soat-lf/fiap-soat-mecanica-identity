@@ -32,6 +32,18 @@ public final class JwtTestTokens {
         return "-----BEGIN PUBLIC KEY-----\n" + base64 + "\n-----END PUBLIC KEY-----\n";
     }
 
+    /** Chave privada do mesmo par, em PEM PKCS#8 (a que o emissor usa nos testes). */
+    public static String chavePrivadaPem() {
+        String base64 = Base64.getMimeEncoder(64, "\n".getBytes()).encodeToString(PAR.getPrivate().getEncoded());
+        return "-----BEGIN PRIVATE KEY-----\n" + base64 + "\n-----END PRIVATE KEY-----\n";
+    }
+
+    /** Chave publica de um par que nao e o do emissor (para simular par trocado). */
+    public static String chavePublicaDeOutroParPem() {
+        String base64 = Base64.getMimeEncoder(64, "\n".getBytes()).encodeToString(OUTRO_PAR.getPublic().getEncoded());
+        return "-----BEGIN PUBLIC KEY-----\n" + base64 + "\n-----END PUBLIC KEY-----\n";
+    }
+
     public static String cliente(UUID sub) {
         return token().sub(sub.toString()).principalType("CLIENTE").gerar();
     }

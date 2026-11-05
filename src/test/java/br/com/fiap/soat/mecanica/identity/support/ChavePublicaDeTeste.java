@@ -12,6 +12,7 @@ public class ChavePublicaDeTeste {
     @Bean
     @Primary
     JwtProperties jwtPropertiesDeTeste() {
-        return new JwtProperties(JwtTestTokens.chavePublicaPem(), JwtTestTokens.ISSUER, JwtTestTokens.AUDIENCE);
+        return new JwtProperties(JwtTestTokens.chavePublicaPem(), JwtTestTokens.ISSUER, JwtTestTokens.AUDIENCE,
+                JwtTestTokens.chavePrivadaPem(), null, null);
     }
 }
