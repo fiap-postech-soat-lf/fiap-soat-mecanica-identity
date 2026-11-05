@@ -28,8 +28,3 @@ output "app_secrets" {
     JWT_PRIVATE_KEY = replace(tls_private_key.jwt.private_key_pem_pkcs8, "\n", "\\n")
   }
 }
-
-output "assinatura_os_eventos" {
-  description = "Mostra no log do CD se a assinatura os-eventos -> identity-notificacoes foi criada (F3-h)."
-  value       = local.os_eventos_topic_arn == null ? "pendente: OS sem infra" : "criada"
-}

@@ -11,3 +11,5 @@ data "aws_ssm_parameter" "subnet_ids" {
 data "aws_ssm_parameter" "node_security_group_id" {
   name = "/mecanica/k8s/node-security-group-id"
 }
+
+data "aws_caller_identity" "atual" {}
