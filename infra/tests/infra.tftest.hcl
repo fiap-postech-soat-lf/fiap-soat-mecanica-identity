@@ -22,6 +22,15 @@ mock_provider "aws" {
       insecure_value = "sg-0123456789abcdef0"
     }
   }
+
+  # Padrao: o OS ainda nao tem infra/, entao /mecanica/os esta vazio (F3-h).
+  override_data {
+    target = data.aws_ssm_parameters_by_path.os
+    values = {
+      names  = []
+      values = []
+    }
+  }
 }
 
 # O servico-cd.yml transforma as chaves em ConfigMap e Secret com --from-env-file.
@@ -29,13 +38,13 @@ run "contrato_infra_cd" {
   command = apply
 
   assert {
-    condition     = toset(keys(output.app_config)) == toset(["SPRING_DATASOURCE_URL", "AWS_REGION", "JWT_PUBLIC_KEY"])
-    error_message = "app_config deve ter SPRING_DATASOURCE_URL, AWS_REGION e JWT_PUBLIC_KEY."
+    condition     = toset(keys(output.app_config)) == toset(["SPRING_DATASOURCE_URL", "AWS_REGION", "JWT_PUBLIC_KEY", "APP_MESSAGING_CONSUMIDOR_FILAS", "APP_MESSAGING_DLQS"])
+    error_message = "app_config deve ter 5 chaves: banco, regiao, JWT_PUBLIC_KEY e as duas de mensageria."
   }
 
   assert {
-    condition     = toset(keys(output.app_secrets)) == toset(["SPRING_DATASOURCE_USERNAME", "SPRING_DATASOURCE_PASSWORD"])
-    error_message = "app_secrets deve ter SPRING_DATASOURCE_USERNAME e SPRING_DATASOURCE_PASSWORD."
+    condition     = toset(keys(output.app_secrets)) == toset(["SPRING_DATASOURCE_USERNAME", "SPRING_DATASOURCE_PASSWORD", "JWT_PRIVATE_KEY"])
+    error_message = "app_secrets deve ter usuario, senha do banco e JWT_PRIVATE_KEY."
   }
 
   assert {
@@ -46,6 +55,107 @@ run "contrato_infra_cd" {
   assert {
     condition     = output.ecr_repository_url == aws_ecr_repository.this.repository_url
     error_message = "ecr_repository_url deve ser a URL do repositorio ECR do servico."
+  }
+
+  assert {
+    condition     = !contains(keys(output.app_config), "JWT_PRIVATE_KEY")
+    error_message = "A chave privada nunca pode ir para o ConfigMap (app_config)."
+  }
+}
+
+run "chave_privada_escapada_numa_linha" {
+  command = apply
+
+  assert {
+    condition     = !strcontains(nonsensitive(output.app_secrets.JWT_PRIVATE_KEY), "\n")
+    error_message = "JWT_PRIVATE_KEY nao pode ter quebra de linha real."
+  }
+
+  assert {
+    condition     = startswith(nonsensitive(output.app_secrets.JWT_PRIVATE_KEY), "-----BEGIN PRIVATE KEY-----\\n")
+    error_message = "JWT_PRIVATE_KEY deve ser o PEM PKCS#8 com \\n escapado."
+  }
+
+  # Privada e publica saem do mesmo tls_private_key: formam par por construcao.
+  assert {
+    condition = (
+      replace(nonsensitive(output.app_secrets.JWT_PRIVATE_KEY), "\\n", "\n") == tls_private_key.jwt.private_key_pem_pkcs8
+      && replace(output.app_config.JWT_PUBLIC_KEY, "\\n", "\n") == tls_private_key.jwt.public_key_pem
+    )
+    error_message = "As chaves do Secret e do ConfigMap devem ser o par do mesmo tls_private_key."
+  }
+}
+
+run "fila_com_dlq" {
+  command = apply
+
+  assert {
+    condition     = aws_sqs_queue.notificacoes.name == "mecanica-identity-notificacoes" && aws_sqs_queue.notificacoes_dlq.name == "mecanica-identity-notificacoes-dlq"
+    error_message = "Nomes das filas conforme a tabela 3.4 da F1."
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_sqs_queue.notificacoes.redrive_policy).maxReceiveCount == 5
+      && jsondecode(aws_sqs_queue.notificacoes.redrive_policy).deadLetterTargetArn == aws_sqs_queue.notificacoes_dlq.arn
+    )
+    error_message = "Redrive para a DLQ com maxReceiveCount = 5."
+  }
+
+  assert {
+    condition     = aws_sqs_queue.notificacoes.visibility_timeout_seconds == 30 && aws_sqs_queue.notificacoes.message_retention_seconds == 345600
+    error_message = "visibility_timeout 30 s e retencao de 4 dias."
+  }
+
+  assert {
+    condition     = output.app_config.APP_MESSAGING_CONSUMIDOR_FILAS == aws_sqs_queue.notificacoes.url && output.app_config.APP_MESSAGING_DLQS == aws_sqs_queue.notificacoes_dlq.url
+    error_message = "app_config deve apontar para a fila e para a DLQ."
+  }
+}
+
+run "sem_topico_do_os_sem_assinatura" {
+  command = apply
+
+  assert {
+    condition     = length(aws_sns_topic_subscription.os_eventos) == 0 && length(aws_sqs_queue_policy.notificacoes) == 0
+    error_message = "Com /mecanica/os vazio, nao pode haver assinatura nem policy."
+  }
+
+  assert {
+    condition     = output.assinatura_os_eventos == "pendente: OS sem infra"
+    error_message = "O output deve indicar assinatura pendente."
+  }
+}
+
+run "com_topico_do_os_assina_raw" {
+  command = apply
+
+  override_data {
+    target = data.aws_ssm_parameters_by_path.os
+    values = {
+      names  = ["/mecanica/os/os-eventos-topic-arn"]
+      values = ["arn:aws:sns:us-east-1:123456789012:mecanica-os-eventos"]
+    }
+  }
+
+  assert {
+    condition = (
+      length(aws_sns_topic_subscription.os_eventos) == 1
+      && aws_sns_topic_subscription.os_eventos[0].protocol == "sqs"
+      && aws_sns_topic_subscription.os_eventos[0].raw_message_delivery
+      && aws_sns_topic_subscription.os_eventos[0].topic_arn == "arn:aws:sns:us-east-1:123456789012:mecanica-os-eventos"
+    )
+    error_message = "Assinatura sqs com raw_message_delivery apontando para o topico do OS."
+  }
+
+  assert {
+    condition     = length(aws_sqs_queue_policy.notificacoes) == 1 && strcontains(aws_sqs_queue_policy.notificacoes[0].policy, "arn:aws:sns:us-east-1:123456789012:mecanica-os-eventos")
+    error_message = "A policy da fila deve permitir o SourceArn do topico."
+  }
+
+  assert {
+    condition     = output.assinatura_os_eventos == "criada"
+    error_message = "O output deve indicar assinatura criada."
   }
 }
 
