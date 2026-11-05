@@ -6,7 +6,7 @@ Microsserviço **identity** da **Fase 4** da Oficina Mecânica do Braia (Tech Ch
 
 ## Responsabilidade
 
-*TODO*: o que este serviço faz e quais dados são dele.
+Dono dos dados de **clientes** (PF e PJ), **veículos** e **funcionários** (usuários e cargos), e único **emissor de JWT** da Fase 4. Também envia as notificações de mudança de situação da OS ao cliente, porque o e-mail é dado dele. Banco próprio: `identity_db` (PostgreSQL).
 
 ## Arquitetura
 
@@ -19,11 +19,46 @@ Microsserviço **identity** da **Fase 4** da Oficina Mecânica do Braia (Tech Ch
 
 ## API
 
-*TODO*: rotas expostas (ver `docs/contratos/rotas.md` no `-k8s`). Swagger: `/identity/swagger-ui.html` (via Traefik) ou `/swagger-ui.html` (local).
+Rotas e perfis (contrato em `docs/contratos/rotas.md` do `-k8s`):
+
+| Rota | Perfil |
+|---|---|
+| `POST /auth/login`, `POST /auth/cpf` | público |
+| `GET /clientes/me` | CLIENTE |
+| `POST /clientes`, `PATCH /clientes/{id}`, `GET /clientes/{id}`, `GET /clientes/por-cpf/{cpf}`, `GET /clientes/por-cnpj/{cnpj}`, `GET /clientes/por-usuario/{usuarioId}` | ATENDENTE |
+| `POST /veiculos`, `PATCH /veiculos/{id}`, `GET /veiculos/por-placa/{placa}`, `GET /veiculos/por-cliente/{clienteId}` | ATENDENTE |
+| `GET /veiculos/{id}` | ATENDENTE ou MECANICO (o OS repassa o JWT de quem chamou) |
+| `POST /usuarios` | qualquer funcionário |
+
+Logins: ambos devolvem `{accessToken, tokenType: "Bearer", expiresIn: 3600}`. `POST /auth/login` recebe `{email, senha}` (funcionário); `POST /auth/cpf` recebe `{cpf}` (cliente PF ativo). Erros sem enumeração: 401 `CREDENCIAIS_INVALIDAS` / `ACESSO_NEGADO`, 400 `CPF_INVALIDO`, 503 `EMISSOR_INDISPONIVEL` (sem `JWT_PRIVATE_KEY`). O formato do token está em `docs/contratos/jwt.md`. Se a chave privada não formar par com a pública, a aplicação não sobe.
+
+Swagger: Swagger: `/identity/swagger-ui.html` (via Traefik) ou `/swagger-ui.html` (local).
 
 ## Mensagens
 
-*TODO*: eventos publicados e comandos consumidos (contratos em `docs/contratos/`).
+**Consome** `SituacaoOrdemServicoAlterada` e `OrdemServicoCancelada` (v1) da fila `mecanica-identity-notificacoes` (assinatura de `os-eventos`). Busca o cliente pelo `clienteId` e registra `notificacao_os_enviada` com o e-mail mascarado (adapter de log; SMTP é evolução). Cliente inexistente: log `notificacao_sem_destinatario`, sem DLQ. **Não publica** eventos.
+
+Os exemplos do produtor foram copiados do `-os` (`exemplos/*.v1.json` e os schemas) para `src/test/resources/contratos-consumidos/`. Se o OS mudar o contrato, a cópia precisa ser atualizada.
+
+## Seed e logins de teste
+
+Migration `V5__seed.sql`, com os mesmos UUIDs usados pelos seeds dos outros serviços:
+
+| Tipo | UUID | Login |
+|---|---|---|
+| ATENDENTE | `11111111-1111-1111-1111-111111111111` | `atendente@mecanica.test` |
+| MECANICO | `22222222-2222-2222-2222-222222222222` | `mecanico@mecanica.test` |
+| ALMOXARIFE | `aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa` | `almoxarife@mecanica.test` |
+| Cliente PF | `33333333-3333-3333-3333-333333333333` | CPF `52998224725` |
+| Cliente PJ | `33333333-3333-3333-3333-333333333334` | CNPJ `11222333000181` (não loga por CPF) |
+| Veículo do PF | `44444444-4444-4444-4444-444444444444` | placa `ABC1D23` |
+| Veículo do PJ | `44444444-4444-4444-4444-444444444445` | placa `XYZ1234` |
+
+A senha dos funcionários é `Senha@123` (só o hash BCrypt está no repositório). Ela fica documentada porque o ambiente é acadêmico. O BCrypt custa ~0,5 s por login com 250m de CPU, o que é aceito.
+
+## Infraestrutura
+
+`infra/` (Terraform, aplicado pelo `servico-cd.yml@v1`): ECR, RDS `identity_db`, par RS256, fila `identity-notificacoes` com DLQ e assinatura condicional de `os-eventos`. A chave privada vai ao pod só pelo Secret (`JWT_PRIVATE_KEY`). Detalhes e contrato com o CD em [`infra/README.md`](infra/README.md).
 
 Como o esqueleto funciona:
 
