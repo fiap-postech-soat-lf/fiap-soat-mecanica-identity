@@ -23,12 +23,10 @@ mock_provider "aws" {
     }
   }
 
-  # Padrao: o OS ainda nao tem infra/, entao /mecanica/os esta vazio (F3-h).
   override_data {
-    target = data.aws_ssm_parameters_by_path.os
+    target = data.aws_caller_identity.atual
     values = {
-      names  = []
-      values = []
+      account_id = "123456789012"
     }
   }
 }
@@ -113,49 +111,38 @@ run "fila_com_dlq" {
   }
 }
 
-run "sem_topico_do_os_sem_assinatura" {
+# F4-a: o OS cria a assinatura; o Identity so libera o topico e publica o ARN da fila.
+run "policy_permite_os_eventos" {
   command = apply
 
   assert {
-    condition     = length(aws_sns_topic_subscription.os_eventos) == 0 && length(aws_sqs_queue_policy.notificacoes) == 0
-    error_message = "Com /mecanica/os vazio, nao pode haver assinatura nem policy."
-  }
-
-  assert {
-    condition     = output.assinatura_os_eventos == "pendente: OS sem infra"
-    error_message = "O output deve indicar assinatura pendente."
-  }
-}
-
-run "com_topico_do_os_assina_raw" {
-  command = apply
-
-  override_data {
-    target = data.aws_ssm_parameters_by_path.os
-    values = {
-      names  = ["/mecanica/os/os-eventos-topic-arn"]
-      values = ["arn:aws:sns:us-east-1:123456789012:mecanica-os-eventos"]
-    }
+    condition = (
+      jsondecode(aws_sqs_queue_policy.notificacoes.policy).Statement[0].Condition.ArnEquals["aws:SourceArn"]
+      == "arn:aws:sns:us-east-1:123456789012:mecanica-os-eventos"
+    )
+    error_message = "O SourceArn deve ser montado a partir de regiao, conta e do nome mecanica-os-eventos."
   }
 
   assert {
     condition = (
-      length(aws_sns_topic_subscription.os_eventos) == 1
-      && aws_sns_topic_subscription.os_eventos[0].protocol == "sqs"
-      && aws_sns_topic_subscription.os_eventos[0].raw_message_delivery
-      && aws_sns_topic_subscription.os_eventos[0].topic_arn == "arn:aws:sns:us-east-1:123456789012:mecanica-os-eventos"
+      jsondecode(aws_sqs_queue_policy.notificacoes.policy).Statement[0].Action == "sqs:SendMessage"
+      && jsondecode(aws_sqs_queue_policy.notificacoes.policy).Statement[0].Resource == aws_sqs_queue.notificacoes.arn
     )
-    error_message = "Assinatura sqs com raw_message_delivery apontando para o topico do OS."
+    error_message = "A policy permite sqs:SendMessage na fila de notificacoes."
+  }
+}
+
+run "arn_da_fila_no_ssm" {
+  command = apply
+
+  assert {
+    condition     = aws_ssm_parameter.notificacoes_queue_arn.name == "/mecanica/identity/notificacoes-queue-arn" && aws_ssm_parameter.notificacoes_queue_arn.type == "String"
+    error_message = "ARN da fila em /mecanica/identity/notificacoes-queue-arn (String)."
   }
 
   assert {
-    condition     = length(aws_sqs_queue_policy.notificacoes) == 1 && strcontains(aws_sqs_queue_policy.notificacoes[0].policy, "arn:aws:sns:us-east-1:123456789012:mecanica-os-eventos")
-    error_message = "A policy da fila deve permitir o SourceArn do topico."
-  }
-
-  assert {
-    condition     = output.assinatura_os_eventos == "criada"
-    error_message = "O output deve indicar assinatura criada."
+    condition     = aws_ssm_parameter.notificacoes_queue_arn.insecure_value == aws_sqs_queue.notificacoes.arn
+    error_message = "O parametro deve guardar o ARN da fila de notificacoes."
   }
 }
 

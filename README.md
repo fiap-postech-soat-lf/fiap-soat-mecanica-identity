@@ -36,7 +36,7 @@ Swagger: `/identity/swagger-ui.html` (via Traefik) ou `/swagger-ui.html` (local)
 
 ## Mensagens
 
-**Consome** `SituacaoOrdemServicoAlterada` e `OrdemServicoCancelada` (v1) da fila `mecanica-identity-notificacoes` (assinatura de `os-eventos`). Busca o cliente pelo `clienteId` e registra `notificacao_os_enviada` com o e-mail mascarado (adapter de log; SMTP é evolução). Cliente inexistente: log `notificacao_sem_destinatario`, sem DLQ. **Não publica** eventos.
+**Consome** `SituacaoOrdemServicoAlterada` e `OrdemServicoCancelada` (v1) da fila `mecanica-identity-notificacoes` (a assinatura de `os-eventos` é criada pelo `infra/` do OS, por exceção à regra do consumidor dono, para desfazer o ciclo da chave pública do JWT: [ADR-F4-03](https://github.com/fiap-postech-soat-lf/fiap-soat-mecanica-k8s/blob/main/docs/arquitetura-fase4/adr/ADR-F4-03-sns-sqs-sdk-v2.md)). Busca o cliente pelo `clienteId` e registra `notificacao_os_enviada` com o e-mail mascarado (adapter de log; SMTP é evolução). Cliente inexistente: log `notificacao_sem_destinatario`, sem DLQ. **Não publica** eventos.
 
 Os exemplos do produtor foram copiados do `-os` (`exemplos/*.v1.json` e os schemas) para `src/test/resources/contratos-consumidos/`. Se o OS mudar o contrato, a cópia precisa ser atualizada.
 
@@ -58,7 +58,7 @@ A senha dos funcionários é `Senha@123` (só o hash BCrypt está no repositóri
 
 ## Infraestrutura
 
-`infra/` (Terraform, aplicado pelo `servico-cd.yml@v1`): ECR, RDS `identity_db`, par RS256, fila `identity-notificacoes` com DLQ e assinatura condicional de `os-eventos`. A chave privada vai ao pod só pelo Secret (`JWT_PRIVATE_KEY`). Detalhes e contrato com o CD em [`infra/README.md`](infra/README.md).
+`infra/` (Terraform, aplicado pelo `servico-cd.yml@v1`): ECR, RDS `identity_db`, par RS256, fila `identity-notificacoes` com DLQ e a policy que libera o tópico `mecanica-os-eventos` (a assinatura é do OS, F4-a). A chave privada vai ao pod só pelo Secret (`JWT_PRIVATE_KEY`). Detalhes e contrato com o CD em [`infra/README.md`](infra/README.md).
 
 Como o esqueleto funciona:
 
