@@ -11,7 +11,7 @@ Dono dos dados de **clientes** (PF e PJ), **veículos** e **funcionários** (usu
 ## Arquitetura
 
 - Spring Boot 3.5, Java 21 (virtual threads), arquitetura hexagonal: `domain/`, `application/`, `adapters/in|out/`, `config/`.
-- Autenticação: JWT RS256 emitido pelo Identity, validado aqui também (defesa em profundidade). Públicos só `/actuator/health/**` e o Swagger.
+- Autenticação: JWT RS256 emitido pelo Identity, validado aqui também (defesa em profundidade). Públicos só `POST /auth/login`, `POST /auth/cpf`, `/actuator/health/**` e o Swagger.
 - Mensageria: AWS SDK v2 direto (SNS e SQS), com outbox transacional e consumidor idempotente.
 - Observabilidade: logs JSON com `correlationId`, métricas OTLP e agente OpenTelemetry injetado no EKS (Datadog).
 
@@ -32,7 +32,7 @@ Rotas e perfis (contrato em `docs/contratos/rotas.md` do `-k8s`):
 
 Logins: ambos devolvem `{accessToken, tokenType: "Bearer", expiresIn: 3600}`. `POST /auth/login` recebe `{email, senha}` (funcionário); `POST /auth/cpf` recebe `{cpf}` (cliente PF ativo). Erros sem enumeração: 401 `CREDENCIAIS_INVALIDAS` / `ACESSO_NEGADO`, 400 `CPF_INVALIDO`, 503 `EMISSOR_INDISPONIVEL` (sem `JWT_PRIVATE_KEY`). O formato do token está em `docs/contratos/jwt.md`. Se a chave privada não formar par com a pública, a aplicação não sobe.
 
-Swagger: Swagger: `/identity/swagger-ui.html` (via Traefik) ou `/swagger-ui.html` (local).
+Swagger: `/identity/swagger-ui.html` (via Traefik) ou `/swagger-ui.html` (local).
 
 ## Mensagens
 
@@ -90,4 +90,4 @@ O CD (`servico-cd.yml@v1`) roda após o CI verde na `main`: `terraform apply` do
 
 ## Decisões
 
-ADRs em `docs/adr/`.
+ADRs do serviço em `docs/adr/`. Decisões transversais no `-k8s`: [ADR-F4-07](https://github.com/fiap-postech-soat-lf/fiap-soat-mecanica-k8s/blob/main/docs/arquitetura-fase4/adr/ADR-F4-07-jwt-rs256.md) (JWT RS256) e [ADR-F4-12](https://github.com/fiap-postech-soat-lf/fiap-soat-mecanica-k8s/blob/main/docs/arquitetura-fase4/adr/ADR-F4-12-notificacoes-no-identity.md) (notificações no Identity).
