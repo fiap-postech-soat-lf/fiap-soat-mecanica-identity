@@ -64,6 +64,7 @@ public abstract class IntegracaoTest {
     @DynamicPropertySource
     static void registrarPropriedades(DynamicPropertyRegistry registry) {
         registry.add("app.security.jwt.public-key", JwtTestTokens::chavePublicaPem);
+        registry.add("app.security.jwt.private-key", JwtTestTokens::chavePrivadaPem);
         registry.add("app.aws.endpoint", () -> LOCALSTACK.getEndpoint().toString());
         registry.add("app.aws.region", LOCALSTACK::getRegion);
         registry.add("app.aws.access-key-id", LOCALSTACK::getAccessKey);
