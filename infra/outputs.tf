@@ -12,6 +12,9 @@ output "app_config" {
     AWS_REGION            = var.aws_region
     # --from-env-file nao aceita valor multilinha; o JwtTokenValidator aceita PEM com \n escapado.
     JWT_PUBLIC_KEY = replace(tls_private_key.jwt.public_key_pem, "\n", "\\n")
+
+    APP_MESSAGING_CONSUMIDOR_FILAS = aws_sqs_queue.notificacoes.url
+    APP_MESSAGING_DLQS             = aws_sqs_queue.notificacoes_dlq.url
   }
 }
 
@@ -21,6 +24,12 @@ output "app_secrets" {
   value = {
     SPRING_DATASOURCE_USERNAME = module.db.username
     SPRING_DATASOURCE_PASSWORD = module.db.password
-    # F3: JWT_PRIVATE_KEY (escapada do mesmo jeito)
+    # Fica so no Secret, nunca no ConfigMap; escapada como a publica.
+    JWT_PRIVATE_KEY = replace(tls_private_key.jwt.private_key_pem_pkcs8, "\n", "\\n")
   }
+}
+
+output "assinatura_os_eventos" {
+  description = "Mostra no log do CD se a assinatura os-eventos -> identity-notificacoes foi criada (F3-h)."
+  value       = local.os_eventos_topic_arn == null ? "pendente: OS sem infra" : "criada"
 }
