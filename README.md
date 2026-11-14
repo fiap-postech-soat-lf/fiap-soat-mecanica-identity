@@ -1,8 +1,11 @@
 # fiap-soat-mecanica-identity
 
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=fiap-postech-soat-lf_fiap-soat-mecanica-identity&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=fiap-postech-soat-lf_fiap-soat-mecanica-identity)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=fiap-postech-soat-lf_fiap-soat-mecanica-identity&metric=coverage)](https://sonarcloud.io/component_measures?id=fiap-postech-soat-lf_fiap-soat-mecanica-identity&metric=coverage)
+
 Microsserviço **identity** da **Fase 4** da Oficina Mecânica do Braia (Tech Challenge FIAP SOAT).
 
-> 🚧 Gerado a partir do esqueleto `fiap-soat-mecanica-k8s/templates/servico-base/`. As seções com *TODO* são preenchidas na fase do serviço e revisadas na F9.
+Veja também o [diagrama geral da arquitetura](https://github.com/fiap-postech-soat-lf/fiap-soat-mecanica-k8s/blob/main/docs/arquitetura-fase4/diagrama/arquitetura-aws-fase4.png). Vídeo da entrega: *link entra depois do upload*.
 
 ## Responsabilidade
 
@@ -15,7 +18,21 @@ Dono dos dados de **clientes** (PF e PJ), **veículos** e **funcionários** (usu
 - Mensageria: AWS SDK v2 direto (SNS e SQS), com outbox transacional e consumidor idempotente.
 - Observabilidade: logs JSON com `correlationId`, métricas OTLP e agente OpenTelemetry injetado no EKS (Datadog).
 
-*TODO*: diagrama do serviço.
+```mermaid
+flowchart LR
+    F[Funcionário] -->|POST /auth/login| A[AuthController]
+    CL[Cliente] -->|POST /auth/cpf| A
+    A --> EM[Emissor JWT RS256<br/>chave privada por variável de ambiente]
+    EM -->|accessToken| F
+    AT[Atendente] -->|REST + JWT| CRUD[clientes, veículos, usuários]
+    OSC[OS Service] -->|GET /veiculos/id, JWT repassado| CRUD
+    A & CRUD --> PG[(Postgres identity_db)]
+    Q[[SQS identity-notificacoes]] --> SC[SqsConsumidor] --> H[Handlers de notificação]
+    H --> PG
+    H --> N[NotificacaoOrdemServicoPort<br/>adapter de log]
+```
+
+O Identity é o único emissor de JWT: a chave pública vai ao SSM e é lida pelo Authorizer e pelos outros serviços.
 
 ## API
 
