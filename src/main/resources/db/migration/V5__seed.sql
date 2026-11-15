@@ -1,4 +1,4 @@
--- Seed de teste (mesmos UUIDs do V9 do monolito). Senha dos funcionarios: Senha@123 (apenas o hash BCrypt).
+-- Seed de teste (UUIDs estaveis, ADR-F4-13). Senha dos funcionarios: Senha@123 (apenas o hash BCrypt).
 INSERT INTO usuarios (id, status, nome, email, senha, cargo_enum)
 VALUES
     ('11111111-1111-1111-1111-111111111111', 'ATIVO', 'Atendente Teste', 'atendente@mecanica.test', '$2a$10$fy/vj/iW/AukFhszMTR.7O5iJB707EfVk6zGsZEumVj4hmdgATyu6', 'ATENDENTE'),

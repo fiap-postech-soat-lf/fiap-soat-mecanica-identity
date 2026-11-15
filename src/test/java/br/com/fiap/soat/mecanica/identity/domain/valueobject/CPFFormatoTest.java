@@ -8,7 +8,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** A regra do CPF e a mais restritiva entre o monolito e o Cpf do -auth: so 11 digitos ou 000.000.000-00. */
+/** A regra do CPF e restritiva: so 11 digitos ou 000.000.000-00. */
 class CPFFormatoTest {
 
     @ParameterizedTest
